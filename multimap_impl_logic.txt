@@ -1,0 +1,78 @@
+PayloadFormat* VehicleHalUtils::messageFormatter(std::vector<uint8_t>& data) {
+    //PayloadFormat *payloadFormat = new PayloadFormat();
+    ALOGE("Entering [%s]",__func__);
+    int index = 0;
+    try{
+        payloadFormat->dataLength = (data[index++] << 8 | data[index++]);
+        ALOGE("The datalength is %x", payloadFormat->dataLength);
+        payloadFormat->msgId = (data[index++] << 8 | data[index++]);        
+        ALOGE("The msgId is %x", payloadFormat->msgId);
+        payloadFormat->serviceId = data[index++];
+        ALOGE("The serviceId is %x", payloadFormat->serviceId);
+        payloadFormat->subFunction = data[index];
+        //Determining the msgsize = Datalength - (msgId + serviceId)
+        payloadFormat->msgSize = payloadFormat->dataLength - 3;
+        /*switch(payloadFormat->serviceId){
+            case SERVICE_ID::READ_SERVICE: {
+                payloadFormat->msgSize = 0;
+                break;
+            }
+            case SERVICE_ID::WRITE_SERVICE: {
+                ALOGE("In the write case");            
+                payloadFormat->msgSize = VehicleHalUtils::findMessageSize(writeMessageSizeMap, (MESSAGE_IDS_V2H)payloadFormat->msgId);
+                break;
+            }
+            case SERVICE_ID::IOCONTROL_SERVICE: {
+                ALOGE("In the IOControl case");            
+                payloadFormat->msgSize = VehicleHalUtils::findMessageSize(IoControlMessageSizeMap,(SUB_FUNCTION)payloadFormat->subFunction, 
+                                                                            (MESSAGE_IDS_V2H)payloadFormat->msgId);
+                break;
+            }
+            case SERVICE_ID::ROUTINE_SERVICE: {
+                ALOGE("In the RoutineControl case");            
+                payloadFormat->msgSize = VehicleHalUtils::findMessageSize(RoutineControlMessageSizeMap,(SUB_FUNCTION)payloadFormat->subFunction, 
+                                                                            (MESSAGE_IDS_V2H)payloadFormat->msgId);
+                break;
+            }
+            default:
+                ALOGE("Invalid Service ID");
+        }*/
+        payloadFormat->data = { data.begin() + index, data.begin() + index + payloadFormat->msgSize };
+    } catch (const std::length_error& le){
+            ALOGE("Vector length exception:%s", le.what());
+    }
+    return payloadFormat;
+}
+
+int VehicleHalUtils::findMessageSize(subFunctionToMsgSizeMap& data, SUB_FUNCTION subFunc, MESSAGE_IDS_V2H msgId)
+{
+    ALOGE("Entering [%s]",__func__);
+    subFunctionToMsgSizeMap::iterator itr = data.find(subFunc);
+    if (itr != data.end()) {
+        msgIdtoMsgsizeMap& innerMap = itr->second;
+        msgIdtoMsgsizeMap::iterator innerit = innerMap.find(msgId);
+        if (innerit != innerMap.end()) {
+            ALOGE("The data is found in inner map :: First : %x, Second : %d", innerit->first, innerit->second);
+        }
+        else {
+            ALOGE("Msg Id not found in the inner map");
+        }        
+        return innerit->second;
+    }
+    else {
+        ALOGE("Subfunction not found in the outer map");
+        return 0;
+    }
+}
+
+int VehicleHalUtils::findMessageSize(msgIdtoMsgsizeMap& data, MESSAGE_IDS_V2H msgId)
+{
+    uint16_t size;
+    try {
+        size = data.at((MESSAGE_IDS_V2H)msgId);
+    } catch (const std::out_of_range& msg) {
+        size = 0;
+        ALOGE("Out of Range error:%s:0x%x", msg.what(), msgId);
+    }
+    return size;
+}
